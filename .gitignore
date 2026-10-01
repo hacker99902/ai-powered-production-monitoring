@@ -1,0 +1,126 @@
+
+# ==============================
+# Python
+# ==============================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+
+# ==============================
+# Virtual environments
+# ==============================
+.venv/
+venv/
+env/
+ENV/
+.conda/
+
+# ==============================
+# IDE and editors
+# ==============================
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# ==============================
+# Jupyter Notebook
+# ==============================
+.ipynb_checkpoints/
+
+# ==============================
+# Environment variables / secrets
+# ==============================
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+credentials.json
+
+# ==============================
+# Logs and temporary files
+# ==============================
+*.log
+logs/
+*.tmp
+*.temp
+temp/
+tmp/
+
+# ==============================
+# Operating system
+# ==============================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ==============================
+# Streamlit
+# ==============================
+.streamlit/secrets.toml
+
+# ==============================
+# YOLO / Ultralytics
+# ==============================
+runs/
+wandb/
+mlruns/
+
+# ==============================
+# Model weights
+# ==============================
+*.pt
+*.pth
+*.onnx
+*.engine
+*.torchscript
+*.tflite
+*.h5
+*.pkl
+*.joblib
+
+# ==============================
+# Dataset and generated media
+# ==============================
+data/raw/
+data/processed/
+data/videos/
+data/images/
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.webm
+
+# ==============================
+# Generated output
+# ==============================
+outputs/
+results/
+predictions/
+annotated/
+backup_unused/
+
+# ==============================
+# Test / coverage artifacts
+# ==============================
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# ==============================
+# OS / package artifacts
+# ==============================
+pip-wheel-metadata/
+site-packages/
+# Large training datasets
+data/dataset/

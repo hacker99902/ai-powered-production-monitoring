@@ -1,0 +1,7 @@
+```txt
+streamlit
+ultralytics==8.4.167
+opencv-python
+numpy==1.26.4
+pandas
+```
