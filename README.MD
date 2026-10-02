@@ -1,248 +1,358 @@
-# Smart Factory CV – Production Manager 
+# Multi-Role Computer Vision AI for Smart Factory Monitoring
 
-An AI-powered production monitoring system that uses computer vision to detect, track, and count products moving on a conveyor belt. It provides real-time production counts and throughput information through a Streamlit dashboard.
+An AI-powered computer vision platform designed to support smart factory operations through automated monitoring of production activities, product quality, and workplace safety.
 
-## Problem Statement
+The system is designed around multiple operational roles, with a centralized orchestration engine to route inputs to the appropriate computer vision tasks and organize their results.
 
-In manufacturing industries, manually counting products on conveyor belts can be time-consuming and prone to human error. Monitoring multiple product categories and maintaining accurate production records can also be difficult.
+## Project Overview
 
-This module addresses these challenges by using computer vision to automate product detection, tracking, and counting, helping production managers monitor production more efficiently.
+Traditional factory monitoring often depends on manual inspection and observation. This can make it difficult to monitor production continuously, detect defects consistently, and track operational activities efficiently.
 
-## Solution
+This project aims to provide a unified computer vision platform that processes images, recorded videos, and potentially live camera streams to support different factory monitoring roles.
 
-The Production Manager module uses a YOLO object detection model to identify products and a tracking system to follow them across video frames. A virtual counting line is used to count each tracked product once when it crosses the line.
+### Key Objectives
 
-The results are displayed on a Streamlit dashboard, where users can monitor product counts, throughput, and video processing progress.
+* Automate the detection and monitoring of automotive components.
+* Support production counting and tracking.
+* Provide a modular structure for safety, quality, and production monitoring.
+* Coordinate computer vision tasks through a centralized orchestration engine.
+* Generate structured results to support factory monitoring and decision-making.
 
-## Features
-
-* **Automated product detection:** Detects brake pads, bearings, spark plugs, and gears.
-* **Object tracking:** Uses ByteTrack to maintain object identities across frames.
-* **Automated counting:** Counts each tracked product once when it crosses a virtual line.
-* **Multi-class counting:** Maintains separate counts for each product category.
-* **Throughput monitoring:** Calculates production rates over a rolling time window.
-* **Streamlit dashboard:** Displays production counts, throughput, and processing progress.
-* **Video-based monitoring:** Processes recorded conveyor belt videos.
-
-## Architecture
-
-```mermaid
-flowchart TD
-    A["Input Conveyor Video"] --> B["YOLO Product Detector"]
-    B --> C["ByteTrack Object Tracker"]
-    C --> D["Virtual Line Counter"]
-    D --> E["Production Pipeline"]
-    E --> F["Count and Throughput Data"]
-    E --> G["Annotated Video Frames"]
-    F --> H["Streamlit Dashboard"]
-    G --> H
-    H --> I["Production Monitoring"]
-```
-
-## Products Detected
-
-| Class ID | Product    |
-| -------- | ---------- |
-| 0        | Brake Pad  |
-| 1        | Bearing    |
-| 2        | Spark Plug |
-| 3        | Gear       |
-
-## Technologies Used
-
-* **Python** – Main programming language
-* **YOLO (Ultralytics)** – Object detection
-* **ByteTrack** – Object tracking
-* **OpenCV** – Video processing
-* **PyTorch** – Deep learning framework
-* **Streamlit** – Interactive dashboard
-* **NumPy** – Numerical operations
-
-## Project Structure
+## System Architecture
 
 ```text
-smart-factory-cv-production-manager/
+          Image / Video / Camera
+                    |
+                    v
+              Input Manager
+                    |
+                    v
+           Role / Task Router
+                    |
+                    v
+        Model Manager & Scheduler
+                    |
+          +---------+---------+
+          |         |         |
+          v         v         v
+        Safety    Quality   Production
+        Officer   Inspector  Manager
+          |         |         |
+          v         v         v
+        PPE and   Defect    Object Detection
+        Safety    Detection  Tracking
+        Monitoring           Counting
+          |         |         |
+          +---------+---------+
+                    |
+                    v
+        Unified Event and Result
+               Normalizer
+                    |
+                    v
+          Database / Evidence
+                    |
+                    v
+          Factory Monitoring
+               Dashboard
+```
+
+The architecture separates input handling, task routing, model inference, and result processing to support modular development and future expansion.
+
+## Core Modules
+
+### 1. Safety Officer
+
+Designed to support workplace safety monitoring through computer vision.
+
+Potential functions include:
+
+* Personal protective equipment (PPE) detection.
+* Safety-zone monitoring.
+* Tracking people in monitored areas.
+* Identifying potential safety violations.
+
+### 2. Quality Inspector
+
+Designed to assist in inspecting products and identifying visible defects.
+
+Potential functions include:
+
+* Product and component detection.
+* Region-of-interest inspection.
+* Visual anomaly and defect detection.
+* Recording inspection results for review.
+
+### 3. Production Manager
+
+The production monitoring module uses object detection and video processing to identify automotive components and support production tracking.
+
+The current trained production model detects four component classes:
+
+| Class ID | Object     |
+| -------- | ---------- |
+| 0        | brake_pad  |
+| 1        | bearing    |
+| 2        | spark_plug |
+| 3        | gear       |
+
+The production module is intended to support:
+
+* Component detection on production videos.
+* Object tracking and counting.
+* Production activity monitoring.
+* Annotated video generation.
+* Structured detection results for further processing.
+
+### 4. Orchestration Engine
+
+The orchestration engine coordinates the monitoring workflow by managing:
+
+* Input and task routing.
+* Model selection and activation.
+* Inference scheduling.
+* Result normalization.
+* Duplicate-event handling.
+* Communication between monitoring modules.
+
+The architecture is modular, allowing individual monitoring capabilities to be developed and integrated independently.
+
+## Technology Stack
+
+| Category                   | Technologies              |
+| -------------------------- | ------------------------- |
+| Programming Language       | Python                    |
+| Computer Vision            | OpenCV                    |
+| Object Detection           | Ultralytics YOLO          |
+| Deep Learning              | PyTorch                   |
+| Object Tracking            | ByteTrack                 |
+| Backend / Application      | Python, Streamlit         |
+| Frontend Architecture      | React, Vite, Tailwind CSS |
+| API / Service Architecture | FastAPI                   |
+| Version Control            | Git, GitHub               |
+
+Specific dependencies and installed versions are maintained in `requirements.txt`.
+
+## Production Detection Model
+
+The current production model is a four-class YOLO object detection model trained to detect automotive components.
+
+**Model:** `production_v4_synthetic_spark-2`
+
+**Weights location:**
+
+```text
+runs/detect/runs/detect/production_v4_synthetic_spark-2/weights/best.pt
+```
+
+### Validation Metrics
+
+| Metric    |  Score |
+| --------- | -----: |
+| Precision | 88.32% |
+| Recall    | 76.81% |
+| mAP50     | 84.74% |
+| mAP50-95  | 63.59% |
+
+These metrics are from the recorded validation results for this training run. Performance may differ on unseen videos and actual production-line conditions.
+
+## Repository Structure
+
+```text
+smart-factory-cv/
 │
 ├── app.py
-├── requirements.txt
-├── README.md
-│
+├── common/
+├── configs/
 ├── cv/
 │   └── production/
 │       ├── counter.py
 │       ├── detector.py
-│       ├── tracker.py
-│       └── production_pipeline.py
-│
-├── models/
-│   └── best.pt
+│       ├── line_detector.py
+│       ├── occupancy.py
+│       ├── production_pipeline.py
+│       └── tracker.py
 │
 ├── data/
+│   ├── dataset/
 │   └── videos/
 │       └── test/
 │           └── new_video.mp4
 │
-├── tests/
-│   └── count_new_video.py
+├── runs/
+│   └── detect/
+│       └── runs/
+│           └── detect/
+│               └── production_v4_synthetic_spark-2/
+│                   └── weights/
+│                       └── best.pt
 │
+├── scripts/
+├── tests/
+├── weights/
+├── requirements.txt
+├── README.MD
 └── .gitignore
 ```
 
-*The structure above shows the expected key files. Ensure the model and input video are available at the paths configured in the code.*
+The repository may evolve as additional monitoring roles and supporting services are integrated.
 
 ## Installation and Setup
+
+### Prerequisites
+
+* Python 3.12
+* Git
+* NVIDIA GPU with a compatible CUDA-enabled PyTorch installation for GPU inference (optional)
+* Windows, Linux, or another supported Python environment
 
 ### 1. Clone the Repository
 
 ```bash
 git clone https://github.com/hacker99902/ai-powered-production-monitoring.git
+cd ai-powered-production-monitoring
 ```
 
-### 2. Navigate to the Project Folder
+### 2. Create a Virtual Environment
 
-```bash
-cd smart-factory-cv-production-manager
-```
-
-### 3. Create a Virtual Environment
-
-```bash
-python -m venv .venv
-```
-
-### 4. Activate the Virtual Environment
-
-**Windows PowerShell:**
+For Windows PowerShell:
 
 ```powershell
-.venv\Scripts\Activate.ps1
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 ```
 
-If PowerShell blocks activation, you can use Command Prompt instead:
+### 3. Install Dependencies
 
-```cmd
-.venv\Scripts\activate.bat
+```powershell
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 ```
 
-### 5. Install Dependencies
+Ensure PyTorch and TorchVision are installed in compatible versions for your system. For NVIDIA GPU inference, install a CUDA-compatible PyTorch build supported by your GPU and driver.
 
-```bash
-pip install --upgrade pip
-pip install -r requirements.txt
+### 4. Verify the Model
+
+From the repository root, check that the trained model exists:
+
+```powershell
+Test-Path "runs/detect/runs/detect/production_v4_synthetic_spark-2/weights/best.pt"
 ```
 
-### 6. Install PyTorch
+The command should return `True` if the model weights are present.
 
-If PyTorch is not installed through your environment setup, install a version compatible with your system. For NVIDIA GPU acceleration, follow the official [PyTorch installation instructions](https://pytorch.org/get-started/locally/) and select the appropriate CUDA option.
+## Running the Production Monitoring Application
 
-For CPU inference, install the CPU-compatible PyTorch version.
+If the application entry point is configured with Streamlit, launch it from the project root:
 
-### 7. Add the Trained Model and Input Video
-
-Make sure the trained YOLO model is available at the model path configured in `app.py`, and the input video is available at the video path configured there.
-
-If these files are not included in the repository, obtain them from the project maintainer or provide your own compatible model and video.
-
-## Requirements
-
-Create a `requirements.txt` file in the project root with:
-
-```txt
-streamlit
-ultralytics==8.4.167
-opencv-python
-numpy==1.26.4
-pandas
+```powershell
+streamlit run app.py
 ```
 
-Install the packages using:
+Open the local address displayed in the terminal to access the application.
 
-```bash
-pip install -r requirements.txt
-```
+## Testing the Trained YOLO Model
 
-PyTorch installation may need to be done separately depending on the machine and GPU configuration.
-
-## Run the Application
-
-Once the dependencies, trained model, and input video are ready, run:
-
-```bash
-python -m streamlit run app.py
-```
-
-Streamlit will provide a local URL, usually:
+A sample test video is included in the repository:
 
 ```text
-http://localhost:8501
+data/videos/test/new_video.mp4
 ```
 
-Open this address in your browser to access the dashboard.
+Run object detection on the sample video:
 
-## Run the Counting Test
-
-To run the production counting test from the project root:
-
-```bash
-python -m tests.count_new_video
+```powershell
+yolo detect predict model="runs/detect/runs/detect/production_v4_synthetic_spark-2/weights/best.pt" source="data/videos/test/new_video.mp4" device=0
 ```
 
-The test processes the configured video and reports the product counts.
+For CPU inference, use:
 
-## How It Works
+```powershell
+yolo detect predict model="runs/detect/runs/detect/production_v4_synthetic_spark-2/weights/best.pt" source="data/videos/test/new_video.mp4" device=cpu
+```
 
-1. **Video input:** The system reads a recorded conveyor belt video frame by frame.
-2. **Product detection:** YOLO identifies products such as brake pads, bearings, spark plugs, and gears.
-3. **Object tracking:** ByteTrack associates detections across frames and maintains tracking IDs.
-4. **Line crossing:** The virtual line counter checks when tracked products cross the configured counting line.
-5. **Duplicate prevention:** Each tracked object ID is counted only once.
-6. **Throughput calculation:** The pipeline calculates production rates using a rolling time window.
-7. **Dashboard:** Streamlit displays the counts, throughput, and processing progress.
+The annotated prediction video is saved in an Ultralytics output directory, typically under:
 
-## Validated Test Result
+```text
+runs/detect/predict/
+```
 
-In one test using the configured test video, the system produced the following counts:
+If predictions have already been run, Ultralytics may create a numbered directory such as `predict2`.
 
-| Product    |  Count |
-| ---------- | -----: |
-| Gear       |      4 |
-| Spark Plug |      7 |
-| Bearing    |      4 |
-| Brake Pad  |      3 |
-| **Total**  | **18** |
+### Test with Another Video
 
-These are results for that specific test video, not a guarantee of accuracy for all production footage.
+To test a different video, replace the source path:
 
-## My Contribution
+```powershell
+yolo detect predict model="runs/detect/runs/detect/production_v4_synthetic_spark-2/weights/best.pt" source="path/to/your/video.mp4" device=0
+```
 
-My contribution focuses on the Production Manager and Orchestration Engine module.
+## Model Inference Notes
 
-* Developed the production pipeline to coordinate detection, tracking, and counting.
-* Integrated YOLO-based product detection with ByteTrack.
-* Implemented virtual line-crossing logic to count tracked objects.
-* Added per-class production counts and throughput calculation.
-* Integrated production data into a Streamlit dashboard.
-* Tested the counting pipeline using recorded conveyor belt footage.
+* The trained `.pt` weights file is required for inference.
+* The original training dataset is not required to run predictions.
+* GPU inference requires a compatible CUDA-enabled PyTorch setup.
+* CPU inference can be used if a compatible GPU environment is not available.
+* Detection results should be evaluated on representative, manually verified videos before being used for production counting.
 
-## Limitations
+## Model Training
 
-* The current implementation processes recorded videos rather than a live industrial camera feed.
-* Counting accuracy depends on model performance, video quality, lighting, occlusion, and tracking reliability.
-* Database storage and persistent production reports are not currently implemented.
-* GPU acceleration depends on compatible hardware and software configuration.
+The trained model weights are provided for inference. To retrain or fine-tune the model, the corresponding training dataset, dataset configuration YAML, training scripts, and compatible dependencies are required.
 
-## Future Improvements
+Training example:
 
-* Live camera integration
-* Database-based production history
-* Exportable production reports
-* Multiple counting lines and conveyor belts
-* Alerts for production targets and anomalies
-* Improved performance under occlusion and crowded conveyor conditions
+```powershell
+yolo detect train model=yolo26n.pt data="path/to/data.yaml" epochs=20 imgsz=640 device=0
+```
+
+Adjust the dataset configuration and training parameters according to the dataset and available hardware.
+
+## Evaluation
+
+Model evaluation should consider more than validation metrics alone.
+
+Recommended evaluation measures include:
+
+* Precision and recall.
+* mAP50 and mAP50-95.
+* Missed detections.
+* False detections.
+* Incorrect class predictions.
+* Object counting error on manually annotated test videos.
+
+Testing should use separate videos for training, validation, and testing to reduce data leakage.
+
+## Current Scope
+
+The current production model supports detection of four automotive component classes:
+
+* Brake pads
+* Bearings
+* Spark plugs
+* Gears
+
+The wider project architecture is designed to support safety monitoring, quality inspection, production monitoring, and orchestration. The actual availability of each capability depends on its implementation and integration in the current codebase.
+
+## Future Enhancements
+
+* Improve model performance on real conveyor-belt footage.
+* Integrate verified production-line datasets.
+* Improve object tracking and counting reliability.
+* Expand safety and quality inspection capabilities.
+* Integrate monitoring results into a unified dashboard.
+* Add live camera stream processing.
+* Improve event logging and reporting.
+
+## Contributing
+
+Contributions and improvements are welcome.
+
+1. Fork the repository.
+2. Create a feature branch.
+3. Make and test your changes.
+4. Commit your changes with a descriptive message.
+5. Open a pull request.
 
 ## License
 
-Add a license to this repository if you intend to make the project available for reuse. Until then, no reuse permissions are implied.
-
-
-GitHub: https://github.com/hacker99902/ai-powered-production-monitoring.git
+Add the appropriate license information here if and when a license is selected for the project.
