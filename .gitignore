@@ -1,7 +1,6 @@
 
 # Datasets and video files
 data/
-*.mp4
 *.avi
 *.mov
 
