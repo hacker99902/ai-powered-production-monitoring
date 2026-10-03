@@ -1,242 +1,257 @@
-
 from pathlib import Path
+import queue
+import threading
 import time
 
 import cv2
-import streamlit as st
+import psutil
+import torch
 
+from cv.production.detector import ProductDetector
 from cv.production.production_pipeline import ProductionPipeline
 
 
-# 1. Project paths
+# --------------------------------------------------
+# 1. PATHS AND SETTINGS
+# --------------------------------------------------
 BASE_DIR = Path(__file__).resolve().parent
 
 MODEL_PATH = (
-    BASE_DIR
-    / "runs/detect/runs/detect/production_v4_synthetic_spark-2/weights/best.pt"
+    BASE_DIR / "runs" / "detect" / "models"
+    / "production_7class_car_v1-2"
+    / "weights" / "best.pt"
 )
 
-VIDEO_PATH = BASE_DIR / "data/videos/test/new_video.mp4"
+CAMERAS = [
+    {"name": "DOOR CAMERA", "path": BASE_DIR / "data/videos/test/door.mp4",
+     "orientation": "vertical", "target_class": "car_door"},
+    {"name": "BONNET CAMERA", "path": BASE_DIR / "data/videos/test/hood.mp4",
+     "orientation": "horizontal", "target_class": "car_bonnet"},
+    {"name": "CAR CAMERA", "path": BASE_DIR / "data/videos/test/car.mp4",
+     "orientation": "vertical", "target_class": "car"},
+    {"name": "GEAR CAMERA", "path": BASE_DIR / "data/videos/test/Gears.mp4",
+     "orientation": "horizontal", "target_class": "gear"},
+    {"name": "SPARK PLUG CAMERA", "path": BASE_DIR / "data/videos/test/Spark_plugs.mp4",
+     "orientation": "horizontal", "target_class": "spark_plug"},
+    {"name": "BRAKE PAD CAMERA", "path": BASE_DIR / "data/videos/test/Brake_pads.mp4",
+     "orientation": "horizontal", "target_class": "brake_pad"},
+    {"name": "BEARING CAMERA", "path": BASE_DIR / "data/videos/test/bearing.mp4",
+     "orientation": "horizontal", "target_class": "bearing"},
+]
 
-CLASS_NAMES = ["brake_pad", "bearing", "spark_plug", "gear"]
-
-# Dashboard settings
-DISPLAY_WIDTH = 480
-UI_UPDATE_EVERY = 1
-
-
-# 2. Streamlit page setup
-st.set_page_config(
-    page_title="Smart Factory Monitor",
-    page_icon="🏭",
-    layout="wide"
-)
-
-st.title("🏭 Smart Factory Production Monitor")
-st.caption("Production Manager Dashboard | Conveyor Line 01")
-
-st.divider()
+CONFIDENCE = 0.20
+IMAGE_SIZE = 512
+DEVICE = 0 if torch.cuda.is_available() else "cpu"
+QUEUE_SIZE = 5
+TILE_WIDTH = 640
+TILE_HEIGHT = 360
 
 
-# 3. Production overview
-st.subheader("Production Overview")
+# --------------------------------------------------
+# 2. SHARED RUNTIME STATE
+# --------------------------------------------------
+def new_runtime():
+    return {
+        "lock": threading.Lock(),
+        "stop_event": threading.Event(),
+        "thread": None,
+        "running": False,
+        "finished": False,
+        "error": None,
+        "frames": [None] * len(CAMERAS),
+        "counts": [0] * len(CAMERAS),
+        "read": [0] * len(CAMERAS),
+        "processed": [0] * len(CAMERAS),
+        "queues": [0] * len(CAMERAS),
+        "fps": [0.0] * len(CAMERAS),
+        "cpu": 0.0,
+        "ram": 0.0,
+        "gpu": None,
+        "vram": None,
+        "started_at": None,
+    }
 
-count_columns = st.columns(4)
-count_placeholders = {}
 
-for column, class_name in zip(count_columns, CLASS_NAMES):
-    with column:
-        st.caption(class_name.replace("_", " ").title())
-        count_placeholders[class_name] = st.empty()
-        count_placeholders[class_name].metric(
-            label="Count",
-            value=0
+def gpu_stats():
+    if not torch.cuda.is_available():
+        return None, None
+    try:
+        import subprocess
+        result = subprocess.run(
+            ["nvidia-smi",
+             "--query-gpu=utilization.gpu,memory.used",
+             "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=1, check=True
         )
-
-rate_columns = st.columns(4)
-rate_placeholders = {}
-
-for column, class_name in zip(rate_columns, CLASS_NAMES):
-    with column:
-        st.caption(class_name.replace("_", " ").title())
-        rate_placeholders[class_name] = st.empty()
-        rate_placeholders[class_name].metric(
-            label="Products / min",
-            value="0.0"
-        )
-
-total_placeholder = st.empty()
-total_placeholder.metric("Total Products Counted", 0)
-
-st.divider()
+        values = result.stdout.strip().split(",")
+        return int(values[0].strip()), int(values[1].strip())
+    except Exception:
+        return None, None
 
 
-# 4. Compact camera feed
-st.subheader("Conveyor Belt Camera Feed")
-
-video_placeholder = st.empty()
-progress_placeholder = st.empty()
-status_placeholder = st.empty()
-
-
-# 5. Start monitoring
-if st.button("▶ Start Production Monitoring", type="primary"):
-
-    if not MODEL_PATH.exists():
-        st.error(f"Model not found: {MODEL_PATH}")
-        st.stop()
-
-    if not VIDEO_PATH.exists():
-        st.error(f"Video not found: {VIDEO_PATH}")
-        st.stop()
-
-    cap = cv2.VideoCapture(str(VIDEO_PATH))
-
-    if not cap.isOpened():
-        st.error("Unable to open the test video.")
-        st.stop()
-
-    fps = cap.get(cv2.CAP_PROP_FPS)
-    if fps <= 0:
-        fps = 30.0
-
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    frame_interval = 1.0 / fps
-
-    pipeline = ProductionPipeline(
-        model_path=str(MODEL_PATH),
-        conf=0.20,
-        imgsz=1280,
-        device=0,
-        window_seconds=60,
-        fps=fps
-    )
-
-    frame_number = 0
-    status_placeholder.info("Monitoring in progress...")
+# --------------------------------------------------
+# 3. CAMERA WORKER
+# --------------------------------------------------
+def run_cameras(runtime):
+    caps = []
+    reader_threads = []
+    queues = [queue.Queue(maxsize=QUEUE_SIZE) for _ in CAMERAS]
+    reader_finished = [False] * len(CAMERAS)
+    read_counts = [0] * len(CAMERAS)
+    processed_counts = [0] * len(CAMERAS)
+    frame_times = [[] for _ in CAMERAS]
+    processing_seconds = [0.0] * len(CAMERAS)
+    fps_values = [30.0] * len(CAMERAS)
 
     try:
-        while True:
-            # Start timing this frame
-            frame_start_time = time.perf_counter()
+        if not MODEL_PATH.exists():
+            raise FileNotFoundError(f"YOLO model not found: {MODEL_PATH}")
+        for cam in CAMERAS:
+            if not cam["path"].exists():
+                raise FileNotFoundError(f'Video not found: {cam["path"]}')
 
-            success, frame = cap.read()
+        for i, cam in enumerate(CAMERAS):
+            cap = cv2.VideoCapture(str(cam["path"]))
+            if not cap.isOpened():
+                raise RuntimeError(f'Could not open {cam["name"]}: {cam["path"]}')
+            fps = cap.get(cv2.CAP_PROP_FPS)
+            fps_values[i] = fps if fps and fps > 0 else 30.0
+            caps.append(cap)
 
-            if not success:
+        detector = ProductDetector(
+            model_path=str(MODEL_PATH),
+            conf=CONFIDENCE,
+            imgsz=IMAGE_SIZE,
+            device=DEVICE,
+        )
+        pipelines = [
+            ProductionPipeline(
+                model_path=str(MODEL_PATH),
+                conf=CONFIDENCE,
+                imgsz=IMAGE_SIZE,
+                device=DEVICE,
+                window_seconds=60,
+                fps=fps_values[i],
+                line_orientation=CAMERAS[i]["orientation"],
+                line_position=0.5,
+                detector=detector,
+            )
+            for i in range(len(CAMERAS))
+        ]
+
+        with runtime["lock"]:
+            runtime["running"] = True
+            runtime["started_at"] = time.monotonic()
+
+        def reader(camera_index):
+            cap = caps[camera_index]
+            fps = fps_values[camera_index]
+            frame_index = 0
+            pace_start = time.perf_counter()
+            try:
+                while not runtime["stop_event"].is_set():
+                    ok, frame = cap.read()
+                    if not ok:
+                        break
+
+                    # Simulate the source video's frame rate. A full queue
+                    # blocks the reader; it does not discard the frame.
+                    target_time = pace_start + frame_index / fps
+                    delay = target_time - time.perf_counter()
+                    if delay > 0:
+                        runtime["stop_event"].wait(delay)
+                    if runtime["stop_event"].is_set():
+                        break
+
+                    while not runtime["stop_event"].is_set():
+                        try:
+                            queues[camera_index].put(
+                                (frame_index, frame), timeout=0.1
+                            )
+                            break
+                        except queue.Full:
+                            continue
+                    if runtime["stop_event"].is_set():
+                        break
+
+                    frame_index += 1
+                    read_counts[camera_index] = frame_index
+                    with runtime["lock"]:
+                        runtime["read"][camera_index] = frame_index
+            finally:
+                reader_finished[camera_index] = True
+
+        for i in range(len(CAMERAS)):
+            t = threading.Thread(target=reader, args=(i,), daemon=True)
+            t.start()
+            reader_threads.append(t)
+
+        last_report = 0.0
+        while not runtime["stop_event"].is_set():
+            processed_something = False
+
+            for i, cam in enumerate(CAMERAS):
+                try:
+                    frame_index, frame = queues[i].get_nowait()
+                except queue.Empty:
+                    continue
+
+                processed_something = True
+                start = time.perf_counter()
+                timestamp = frame_index / fps_values[i]
+                annotated, counts, rates, newly_counted = (
+                    pipelines[i].process_frame(frame, timestamp)
+                )
+                processing_seconds[i] += time.perf_counter() - start
+                processed_counts[i] += 1
+
+                target_count = counts.get(cam["target_class"], 0)
+                now = time.monotonic()
+                frame_times[i].append(now)
+                frame_times[i] = [
+                    t for t in frame_times[i] if now - t <= 5.0
+                ]
+                fps = len(frame_times[i]) / 5.0
+
+                # Copy to RGB so Streamlit can render it safely.
+                rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
+                with runtime["lock"]:
+                    runtime["frames"][i] = rgb
+                    runtime["counts"][i] = target_count
+                    runtime["processed"][i] = processed_counts[i]
+                    runtime["fps"][i] = fps
+
+                queues[i].task_done()
+
+            now = time.monotonic()
+            if now - last_report >= 1.0:
+                cpu = psutil.cpu_percent(interval=None)
+                ram = psutil.virtual_memory().percent
+                gpu, vram = gpu_stats()
+                with runtime["lock"]:
+                    runtime["queues"] = [q.qsize() for q in queues]
+                    runtime["cpu"] = cpu
+                    runtime["ram"] = ram
+                    runtime["gpu"] = gpu
+                    runtime["vram"] = vram
+                last_report = now
+
+            if all(reader_finished) and all(q.empty() for q in queues):
                 break
+            if not processed_something:
+                time.sleep(0.003)
 
-            # Timestamp based on the source video's timeline
-            timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
-
-            # Process every frame for tracking and counting
-            annotated_frame, counts, rates, newly_counted = (
-                pipeline.process_frame(frame, timestamp)
-            )
-
-            frame_number += 1
-
-            # Resize only the displayed frame
-            if frame_number % UI_UPDATE_EVERY == 0:
-                height, width = annotated_frame.shape[:2]
-
-                display_height = max(
-                    1,
-                    int(height * DISPLAY_WIDTH / width)
-                )
-
-                small_frame = cv2.resize(
-                    annotated_frame,
-                    (DISPLAY_WIDTH, display_height),
-                    interpolation=cv2.INTER_AREA
-                )
-
-                rgb_frame = cv2.cvtColor(
-                    small_frame,
-                    cv2.COLOR_BGR2RGB
-                )
-
-                video_placeholder.image(
-                    rgb_frame,
-                    channels="RGB",
-                    width=DISPLAY_WIDTH
-                )
-
-                # Update live product counts and rates
-                for class_name in CLASS_NAMES:
-                    count = counts.get(class_name, 0)
-                    rate = rates.get(class_name, 0.0)
-
-                    count_placeholders[class_name].metric(
-                        label="Count",
-                        value=count
-                    )
-
-                    rate_placeholders[class_name].metric(
-                        label="Products / min",
-                        value=f"{rate:.1f}"
-                    )
-
-                total_placeholder.metric(
-                    "Total Products Counted",
-                    sum(counts.values())
-                )
-
-            # Update progress
-            if frame_number % 10 == 0 or frame_number == total_frames:
-                if total_frames > 0:
-                    progress_placeholder.progress(
-                        min(frame_number / total_frames, 1.0),
-                        text=(
-                            f"Processing frame {frame_number} "
-                            f"of {total_frames}"
-                        )
-                    )
-
-            # Pace playback to the original video's FPS
-            elapsed = time.perf_counter() - frame_start_time
-            remaining_time = frame_interval - elapsed
-
-            if remaining_time > 0:
-                time.sleep(remaining_time)
-
-        # 6. Final production counts
-        final_counts = pipeline.get_counts()
-        final_total = sum(final_counts.values())
-
-        for class_name in CLASS_NAMES:
-            count_placeholders[class_name].metric(
-                label="Count",
-                value=final_counts.get(class_name, 0)
-            )
-
-        total_placeholder.metric(
-            "Total Products Counted",
-            final_total
-        )
-
-        progress_placeholder.progress(
-            1.0,
-            text="Processing complete"
-        )
-
-        status_placeholder.success("Monitoring finished.")
-
-        st.divider()
-        st.subheader("Final Production Counts")
-
-        final_columns = st.columns(4)
-
-        for column, class_name in zip(final_columns, CLASS_NAMES):
-            with column:
-                st.metric(
-                    class_name.replace("_", " ").title(),
-                    final_counts.get(class_name, 0)
-                )
-
-        st.metric("Total Products", final_total)
-
-    except Exception as error:
-        status_placeholder.error(f"Processing failed: {error}")
-
+    except Exception as exc:
+        with runtime["lock"]:
+            runtime["error"] = f"{type(exc).__name__}: {exc}"
     finally:
-        cap.release()
+        runtime["stop_event"].set()
+        for t in reader_threads:
+            t.join(timeout=2)
+        for cap in caps:
+            cap.release()
+        with runtime["lock"]:
+            runtime["running"] = False
+            runtime["finished"] = True
+
+# This module contains the camera runtime. Run the UI with: streamlit run streamlit.py
