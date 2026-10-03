@@ -1,91 +1,95 @@
-# Production Manager – AI-Powered Production Monitoring
+# 🏭 AI-Powered Production Monitoring System
 
-An AI-powered computer vision module for smart factory production monitoring. The Production Manager uses YOLO-based object detection to identify automotive components in production videos and supports automated tracking and counting to help monitor manufacturing activities.
+A computer vision-based production monitoring system designed to automate product detection, tracking, and counting in manufacturing environments. The application uses a trained **Ultralytics YOLO model**, OpenCV, and a **Streamlit dashboard** to process multiple recorded camera feeds and display production activity.
 
-## Project Overview
+> **Current implementation:** The dashboard simulates seven camera feeds using recorded MP4 videos. These are not live IP-camera connections.
 
-Manual monitoring of manufacturing lines can be time-consuming and may lead to inaccurate product counts. This module aims to automate component detection and production monitoring using computer vision.
+---
 
-The system processes recorded videos to detect automotive components, identify their classes, and provide annotated video output for visual inspection.
+## 📌 Project Overview
 
-## Objectives
+Manual product counting on manufacturing lines can be time-consuming and prone to human error. This project explores how computer vision can assist production monitoring by detecting automotive components in video, maintaining object identities across frames, and counting objects as they cross a virtual line.
 
-* Detect automotive components in production videos.
-* Identify different component types using a trained YOLO model.
-* Support object tracking and automated counting.
-* Process recorded production-line videos.
-* Generate annotated video output for monitoring and analysis.
-* Provide a foundation for production activity monitoring.
+The system is organized into a detection and monitoring pipeline, with a Streamlit interface for viewing annotated frames and per-camera counts.
 
-## Features
+## ✨ Key Features
 
-* **Object Detection:** Detects automotive components using a trained YOLO model.
-* **Multi-Class Classification:** Identifies four different automotive component classes.
-* **Video Processing:** Runs inference on recorded videos.
-* **Object Tracking:** Includes tracking functionality to maintain object identities across frames.
-* **Production Counting:** Includes counting functionality to support monitoring of detected objects.
-* **Visual Output:** Generates annotated videos with detection boxes and class labels.
+- **YOLO object detection:** Detects trained automotive components in video frames.
+- **Multi-camera dashboard:** Displays seven configured video feeds in a single Streamlit interface.
+- **Object tracking:** Assigns track IDs and associates detections between frames using an IoU-based tracker.
+- **Line-crossing count:** Counts a tracked object when it crosses a configured virtual counting line, while avoiding recounting the same track.
+- **Throughput calculation:** Calculates rolling production rates in products per minute.
+- **Annotated frames:** Displays detection bounding boxes, class labels, track IDs, confidence values, and production statistics.
+- **Session controls:** Start monitoring, stop processing, and reset a session from the dashboard.
+- **Performance monitoring components:** Includes utilities for observing processing FPS, CPU and RAM use, and available GPU memory information.
+- **CPU/GPU selection:** Uses CUDA device 0 when CUDA is available; otherwise, runs on CPU.
 
-Counting performance depends on reliable detection and tracking, and should be validated against manually counted videos.
+## 🧠 Technology Stack
 
-## Supported Object Classes
+| Technology | Purpose |
+|---|---|
+| Python | Application and pipeline logic |
+| Ultralytics YOLO | Automotive component detection |
+| PyTorch | Model inference and device support |
+| OpenCV | Video decoding, frame processing, and annotation |
+| Streamlit | Interactive monitoring dashboard |
+| NumPy | Numerical and array operations |
+| Pandas | Data handling dependency |
+| psutil | CPU and memory monitoring |
+| Git & GitHub | Version control |
 
-The current trained model detects four automotive components.
-
-| Class ID | Class Name |
-| -------- | ---------- |
-| 0        | brake_pad  |
-| 1        | bearing    |
-| 2        | spark_plug |
-| 3        | gear       |
-
-## Model Details
-
-| Parameter               | Details                           |
-| ----------------------- | --------------------------------- |
-| Model                   | YOLO                              |
-| Training run            | `production_v4_synthetic_spark-2` |
-| Task                    | Object detection                  |
-| Number of classes       | 4                                 |
-| Framework               | Ultralytics                       |
-| Deep learning framework | PyTorch                           |
-| Model weights           | `best.pt`                         |
-
-**Model path:**
+## 🏗️ System Architecture
 
 ```text
-runs/detect/runs/detect/production_v4_synthetic_spark-2/weights/best.pt
+              Recorded MP4 Camera Feeds
+                 (7 configured feeds)
+                          |
+                          v
+               Video Reader Threads
+                          |
+                          v
+                Per-Camera Frame Queues
+                          |
+                          v
+               Shared YOLO Detector
+                          |
+                          v
+                Object Detections
+              (boxes, class, confidence)
+                          |
+                          v
+                Per-Camera Tracker
+                          |
+                          v
+              Track IDs and Trajectories
+                          |
+                          v
+               Production Pipeline
+               /        |         \
+              v         v          v
+        Line Crossing  Throughput  Frame
+          Counting     Calculation Annotation
+               \        |         /
+                v       v        v
+                Shared Runtime State
+                          |
+                          v
+                Streamlit Dashboard
+            (frames, counts, session status)
 ```
 
-### Validation Metrics
+Each camera has its own tracking and counting state. The application uses a shared detector to run inference across the configured video streams. Frame queues are bounded; when a queue fills, the corresponding reader waits instead of intentionally discarding frames. Processing can therefore take longer than the source video duration when inference is slower than video playback.
 
-The model's recorded validation metrics are:
-
-| Metric    |  Score |
-| --------- | -----: |
-| Precision | 88.32% |
-| Recall    | 76.81% |
-| mAP50     | 84.74% |
-| mAP50-95  | 63.59% |
-
-These scores are from the model's recorded validation results. Performance on actual conveyor-belt footage may differ depending on lighting, camera angle, object overlap, speed, and background.
-
-## Technology Stack
-
-| Technology       | Purpose                    |
-| ---------------- | -------------------------- |
-| Python           | Main programming language  |
-| Ultralytics YOLO | Object detection           |
-| PyTorch          | Deep learning framework    |
-| OpenCV           | Video and image processing |
-| ByteTrack        | Object tracking            |
-| NumPy            | Numerical processing       |
-| Git and GitHub   | Version control            |
-
-## Project Structure
+## 📁 Project Structure
 
 ```text
-smart-factory-cv/
+ai-powered-production-monitoring/
+│
+├── app.py
+├── streamlit_app.py
+├── requirements.txt
+├── README.MD
+├── .gitignore
 │
 ├── cv/
 │   └── production/
@@ -94,6 +98,7 @@ smart-factory-cv/
 │       ├── detector.py
 │       ├── line_detector.py
 │       ├── occupancy.py
+│       ├── performance_monitor.py
 │       ├── production_pipeline.py
 │       └── tracker.py
 │
@@ -104,153 +109,319 @@ smart-factory-cv/
 │
 ├── runs/
 │   └── detect/
+│       ├── models/
+│       │   └── production_7class_car_v1-2/
+│       │       └── weights/
+│       │           └── best.pt
 │       └── runs/
 │           └── detect/
 │               └── production_v4_synthetic_spark-2/
 │                   └── weights/
 │                       └── best.pt
 │
-├── tests/
-├── requirements.txt
-├── app.py
-├── .gitignore
-└── README.MD
+├── scripts/
+│   ├── audit_dataset_v2.py
+│   ├── audit_new_datasets.py
+│   ├── audit_spark_plugs.py
+│   ├── balance_dataset.py
+│   ├── build_dataset_v2.py
+│   ├── clean_brake_pad_dataset.py
+│   ├── download_roboflow.py
+│   ├── extract_conveyor_frames.py
+│   ├── extract_correction_frames.py
+│   ├── inspect_dataset_classes.py
+│   ├── merge_generated_spark_plugs.py
+│   ├── merge_spark_correction.py
+│   ├── prepare_dataset.py
+│   ├── prepare_spark_correction.py
+│   ├── visualize_dataset.py
+│   └── visualize_dataset_v2.py
+│
+└── tests/
+    ├── check_splits.py
+    ├── count_new_video.py
+    ├── test_counter.py
+    ├── test_counting_video.py
+    ├── test_dwell_time.py
+    ├── test_event_engine.py
+    ├── test_occupancy.py
+    ├── test_occupancy_video.py
+    ├── test_scheduler.py
+    └── verify_dataset.py
 ```
 
-The structure above highlights the production monitoring code and relevant model and video files. Other project files may exist in the repository.
+The repository also contains model and dataset preparation scripts. Some scripts and tests may support experiments or components that are not directly exposed in the current Streamlit dashboard.
 
-## Installation
+## 🔍 Detection and Monitoring Pipeline
 
-### Prerequisites
+1. **Read video frames:** Each configured MP4 is opened and read by a camera reader thread.
+2. **Queue frames:** Frames are placed into a bounded queue for that camera.
+3. **Detect components:** The YOLO model predicts object bounding boxes, classes, and confidence scores.
+4. **Track objects:** The tracker associates detections across frames using class-aware Intersection over Union (IoU) matching and maintains track IDs.
+5. **Initialize a counting line:** The production pipeline configures a horizontal or vertical virtual line based on camera settings.
+6. **Count crossings:** When a tracked object's center crosses the virtual line, it is counted once for that track.
+7. **Calculate throughput:** Recent crossing events are used to calculate a rolling products-per-minute rate.
+8. **Display results:** The Streamlit dashboard updates the camera tiles, counts, and session status.
 
-* Python 3.12
-* Git
-* pip
-* NVIDIA GPU with a compatible CUDA-enabled PyTorch installation for GPU inference (optional)
+The repository also includes an occupancy counter for objects within a configured region of interest (ROI), and an automatic line detector based on object trajectories. These are separate reusable components and may require integration/configuration for a particular workflow.
 
-### 1. Clone the Repository
+## 🧩 Configured Camera Feeds
+
+The current `app.py` configures these seven feeds:
+
+| Dashboard feed | Expected video path | Line orientation | Target class |
+|---|---|---|---|
+| Door Camera | `data/videos/test/door.mp4` | Vertical | `car_door` |
+| Bonnet Camera | `data/videos/test/hood.mp4` | Horizontal | `car_bonnet` |
+| Car Camera | `data/videos/test/car.mp4` | Vertical | `car` |
+| Gear Camera | `data/videos/test/Gears.mp4` | Horizontal | `gear` |
+| Spark Plug Camera | `data/videos/test/Spark_plugs.mp4` | Horizontal | `spark_plug` |
+| Brake Pad Camera | `data/videos/test/Brake_pads.mp4` | Horizontal | `brake_pad` |
+| Bearing Camera | `data/videos/test/bearing.mp4` | Horizontal | `bearing` |
+
+**Important:** The uploaded repository archive includes `data/videos/test/new_video.mp4`, but the dashboard configuration references the seven filenames above. Add the corresponding video files or update the camera paths in `app.py` to match the videos you have. The app checks that the configured videos and model weights exist before starting.
+
+## ⚙️ Model Details
+
+The dashboard currently loads the weights at:
+
+```text
+runs/detect/models/production_7class_car_v1-2/weights/best.pt
+```
+
+A separate model artifact is also present at:
+
+```text
+runs/detect/runs/detect/production_v4_synthetic_spark-2/weights/best.pt
+```
+
+The Streamlit dashboard uses the first path, as configured by `MODEL_PATH` in `app.py`. Confirm that the model's trained class names match the classes expected by the configured camera feeds. Model performance depends on training data and the real production environment; validate the model on representative footage before relying on its counts.
+
+## 💻 Requirements
+
+- Python 3.12 (the project has been used with Python 3.12)
+- pip
+- Git
+- Sufficient RAM for video processing
+- NVIDIA GPU with compatible CUDA-enabled PyTorch and drivers for GPU inference (optional)
+- The trained YOLO weights and all configured video files
+
+The application can use CPU inference if CUDA is unavailable, although processing speed may be lower.
+
+## 🚀 Installation
+
+### 1. Clone the repository
 
 ```powershell
 git clone https://github.com/hacker99902/ai-powered-production-monitoring.git
 cd ai-powered-production-monitoring
 ```
 
-### 2. Create a Virtual Environment
+### 2. Create and activate a virtual environment
 
-For Windows PowerShell:
+On Windows PowerShell:
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 ```
 
-### 3. Install Dependencies
+If PowerShell blocks activation scripts, follow your machine's approved Python environment setup method. On systems where activation is unavailable, you can invoke the environment's Python directly:
+
+```powershell
+.\.venv\Scripts\python.exe --version
+```
+
+### 3. Install dependencies
 
 ```powershell
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
 
-If using an NVIDIA GPU, ensure that the installed PyTorch and TorchVision versions are compatible with your CUDA environment.
-
-### 4. Verify the Model
-
-Check that the trained model weights are available:
-
-```powershell
-Test-Path "runs/detect/runs/detect/production_v4_synthetic_spark-2/weights/best.pt"
-```
-
-The output should be `True` if the model file is present.
-
-## Running Object Detection
-
-A sample test video is included in the repository:
+The current `requirements.txt` contains:
 
 ```text
-data/videos/test/new_video.mp4
+streamlit
+ultralytics==8.4.167
+opencv-python
+numpy==1.26.4
+pandas
 ```
 
-Run the trained model on this video from the project root:
+The app also imports `torch` and `psutil` directly. Install compatible versions of PyTorch and `psutil` in your environment if they are not already installed. For NVIDIA GPU support, select a PyTorch build compatible with your CUDA setup using the official PyTorch installation guidance.
+
+### 4. Verify required files
+
+Check that the model file exists:
 
 ```powershell
-yolo detect predict model="runs/detect/runs/detect/production_v4_synthetic_spark-2/weights/best.pt" source="data/videos/test/new_video.mp4" device=0
+Test-Path "runs/detect/models/production_7class_car_v1-2/weights/best.pt"
 ```
 
-For CPU inference, use:
+Check the configured video files:
+
+```powershell
+Test-Path "data/videos/test/door.mp4"
+Test-Path "data/videos/test/hood.mp4"
+Test-Path "data/videos/test/car.mp4"
+Test-Path "data/videos/test/Gears.mp4"
+Test-Path "data/videos/test/Spark_plugs.mp4"
+Test-Path "data/videos/test/Brake_pads.mp4"
+Test-Path "data/videos/test/bearing.mp4"
+```
+
+Each command should return `True` for the dashboard to start with the current configuration. If a file is missing, add it or edit the corresponding path in `app.py`.
+
+## ▶️ Run the Streamlit Dashboard
+
+From the project root, with the virtual environment active:
+
+```powershell
+python -m streamlit run streamlit_app.py
+```
+
+Then open the local URL printed in the terminal, commonly:
+
+```text
+http://localhost:8501
+```
+
+In the dashboard:
+
+1. Select **Start Live Monitoring** in the sidebar.
+2. View the seven configured camera tiles and their product counts.
+3. Monitor the session status and total counters.
+4. Select **Stop monitoring** to stop processing.
+5. Select **Reset session** when processing has stopped to clear the dashboard state.
+
+The feeds are recorded MP4 simulations, not physical camera streams.
+
+### Alternative: Run YOLO on one video
+
+To run a basic prediction on the sample video using the separate four-class model:
 
 ```powershell
 yolo detect predict model="runs/detect/runs/detect/production_v4_synthetic_spark-2/weights/best.pt" source="data/videos/test/new_video.mp4" device=cpu
 ```
 
-The annotated prediction output is saved by Ultralytics under `runs/detect/predict/` or a numbered `predict` folder if previous runs exist.
+For a CUDA-enabled setup, replace `device=cpu` with `device=0`.
 
-### Test with Another Video
+Ultralytics saves annotated predictions under a `runs/detect/predict/` directory (or a numbered equivalent if that folder already exists). This standalone command performs detection; it does not run the full multi-camera Streamlit monitoring workflow.
 
-You can replace the sample video path with another compatible video:
+## 🧪 Tests and Dataset Utilities
+
+The `tests/` directory contains scripts related to counter behavior, video counting, occupancy, dwell time, event processing, scheduling, and dataset checks. Run a test from the project root, for example:
 
 ```powershell
-yolo detect predict model="runs/detect/runs/detect/production_v4_synthetic_spark-2/weights/best.pt" source="path/to/your/video.mp4" device=0
+python -m pytest
 ```
 
-## Object Tracking and Counting
+If `pytest` is not installed, install it in your environment first:
 
-The production module includes separate code for tracking and counting detected objects:
+```powershell
+python -m pip install pytest
+```
 
-* `detector.py` – detection functionality
-* `tracker.py` – object tracking functionality
-* `counter.py` – counting functionality
-* `line_detector.py` – production-line detection functionality
-* `production_pipeline.py` – production monitoring pipeline
-* `occupancy.py` – occupancy-related processing
+Some files in `tests/` are standalone scripts rather than pytest-style tests, so they may need to be executed individually. Check each script's contents and required input files before running it.
 
-These components are intended to work together to support production monitoring. Their exact behavior depends on the implementation and configuration in the source code.
+The `scripts/` directory contains dataset auditing, preparation, balancing, frame extraction, merging, and visualization utilities. Review each script's paths and configuration before use.
 
-## Evaluation
+## 🛠️ Configuration
 
-The model is evaluated using common object detection metrics:
+The main runtime configuration is near the top of `app.py`:
 
-* **Precision:** Proportion of predicted detections that are correct.
-* **Recall:** Proportion of actual objects that are detected.
-* **mAP50:** Mean average precision at an IoU threshold of 0.50.
-* **mAP50-95:** Mean average precision across IoU thresholds from 0.50 to 0.95.
+| Setting | Current value | Description |
+|---|---:|---|
+| `MODEL_PATH` | `runs/detect/models/production_7class_car_v1-2/weights/best.pt` | YOLO weights used by the dashboard |
+| `CONFIDENCE` | `0.20` | Detection confidence threshold |
+| `IMAGE_SIZE` | `512` | YOLO inference image size |
+| `DEVICE` | CUDA `0` if available, otherwise CPU | Inference device selection |
+| `QUEUE_SIZE` | `5` | Maximum queued frames per camera |
 
-For production counting, additional evaluation should include:
+Camera names, video paths, target classes, and line orientations are configured in the `CAMERAS` list in `app.py`. Update these values to suit the videos and model classes used in your environment.
 
-* Missed objects
-* False detections
-* Incorrect class predictions
-* Object tracking ID switches
-* Difference between automated counts and manually verified counts
+## ⚠️ Troubleshooting
 
-A separate, manually labelled conveyor-belt test set is recommended for assessing performance under real production conditions.
+### `Application Control policy has blocked this file`
 
-## Current Scope and Limitations
+Some Windows systems enforce application execution policies that can block `streamlit.exe` or other executables. First try launching Streamlit through the active Python environment:
 
-* The current trained model detects four automotive component classes.
-* The model has recorded validation results, but its performance on different real-world production lines requires further testing.
-* Counting reliability depends on accurate detection and tracking.
-* Changes in lighting, object orientation, speed, occlusion, and camera placement can affect detection.
-* Training data and the dataset YAML are needed for retraining, but not for inference when the trained weights are available.
+```powershell
+python -m streamlit run streamlit_app.py
+```
 
-## Future Improvements
+If Windows still blocks execution, check the applicable Windows security or organization-managed Application Control logs and request approval from the system administrator. Do not disable organizational security controls or rename executables to bypass them.
 
-* Improve detection performance on real conveyor-belt footage.
-* Expand the manually verified production-line test dataset.
-* Improve tracking stability for moving and overlapping components.
-* Reduce false detections and missed objects.
-* Validate counting accuracy across longer production videos.
-* Add production summaries and downloadable reports.
-* Support live camera streams.
+### `No module named streamlit` (or another package)
 
-## Author's Module
+Confirm that the intended virtual environment is active and that the package is installed in that environment:
 
-**Role:** Production Manager
+```powershell
+python -m pip show streamlit
+python -m pip install -r requirements.txt
+```
 
-**Project:** Multi-Role Computer Vision AI for Smart Factory Monitoring
+If package installation is restricted by your device's policy, use an approved package installation process.
 
-**Focus:** Automotive component detection, object tracking, production counting, and video-based production monitoring.
+### YOLO model file not found
 
-## License
+Confirm the path in `MODEL_PATH` in `app.py` and ensure the corresponding `best.pt` file exists at that location.
 
-Add a license to the repository if the project is intended for reuse or distribution.
+### Video file not found or cannot be opened
+
+Ensure that all seven configured video files exist at the paths listed above and that OpenCV can read their formats. If using different clips, update the paths in `CAMERAS`.
+
+### CUDA or GPU-related errors
+
+Check the installed PyTorch build, NVIDIA driver, and CUDA compatibility. To test with CPU, ensure `DEVICE` is set to `"cpu"` in `app.py`.
+
+### Dashboard processing is slow
+
+Inference speed depends on the hardware, video resolution, model size, and number of feeds. CPU processing may be slower than the source video frame rate. The current bounded queues apply backpressure, so the videos may take longer to process than their playback duration.
+
+## 📊 Evaluation
+
+Object detection metrics such as precision, recall, and mean Average Precision (mAP) can be used to evaluate the model when labelled validation data is available.
+
+For production monitoring, also validate:
+
+- Missed and false detections
+- Class prediction errors
+- Tracking ID stability and ID switches
+- Count differences compared with manually verified totals
+- Throughput estimates against known production rates
+- Performance under different lighting, camera angles, occlusion, and object speeds
+
+Validate with representative, manually reviewed production footage before using the system for operational decisions.
+
+## 🔭 Limitations and Future Work
+
+### Current scope and limitations
+
+- The dashboard uses recorded video files as camera-feed simulations.
+- The seven-camera workflow depends on the configured video files and model weights being present.
+- Detection and counting accuracy depend on model quality, video conditions, and tracking stability.
+- Real-time performance is hardware-dependent; processing recorded files does not guarantee real-time operation with physical cameras.
+- The repository includes additional modules that may not be fully connected to the current dashboard workflow.
+
+### Potential improvements
+
+- Integrate physical IP cameras or RTSP streams.
+- Validate and improve the model using diverse real-world production footage.
+- Improve tracking robustness for overlapping or fast-moving objects.
+- Add configurable counting-line and region-of-interest controls.
+- Store production summaries and export reports.
+- Add alerts for abnormal production rates or detected defects.
+- Expand automated tests and document reproducible model evaluation.
+
+## 👨‍💻 Project Information
+
+**Project:** AI-Powered Production Monitoring System  
+**Domain:** Computer Vision / Smart Manufacturing  
+**Focus:** Automotive component detection, multi-camera video monitoring, object tracking, line-crossing counts, and throughput calculation  
+**Interface:** Streamlit
+
+## 📄 License
+
+No license is specified in this repository at present. Add a license file if you intend to define permissions for use, modification, and distribution.
